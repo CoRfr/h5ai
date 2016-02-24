@@ -117,7 +117,7 @@ modulejs.define('ext/preview', ['_', '$', 'core/resource', 'core/settings', 'cor
             ev.preventDefault();
             ev.stopImmediatePropagation();
             onNext();
-        } else if (key === 70) { // f
+        } else if (key === 90) { // z
             ev.preventDefault();
             ev.stopImmediatePropagation();
             onFullscreen();
