@@ -1,146 +1,96 @@
-modulejs.define('ext/sort', ['_', '$', 'core/event', 'core/resource', 'core/settings', 'core/store', 'core/util'], function (_, $, event, resource, allsettings, store, util) {
-    var settings = _.extend({
-        enabled: false,
-        column: 0,
-        reverse: false,
-        ignorecase: true,
-        natural: false,
-        folders: 0
-    }, allsettings.sort);
-    var storekey = 'ext/sort';
-    var template = '<img src="' + resource.image('sort') + '" class="sort" alt="sort order" />';
+const {each, toArray, dom, cmp, naturalCmp} = require('../util');
+const event = require('../core/event');
+const resource = require('../core/resource');
+const allsettings = require('../core/settings');
+const store = require('../core/store');
+
+const settings = Object.assign({
+    enabled: false,
+    column: 0,
+    reverse: false,
+    ignorecase: true,
+    natural: false,
+    folders: 0
+}, allsettings.sort);
+const storekey = 'ext/sort';
+const tpl = `<img src="${resource.image('sort')}" class="sort" alt="sort order"/>`;
+
+const getTypeOrder = item => item.isFolder() ? settings.folders : 1;
+const columnProps = {0: 'label', 1: 'time', 2: 'size'};
+const columnClasses = {0: 'label', 1: 'date', 2: 'size'};
 
 
-    function getType(item) {
-        var $item = $(item);
+const cmpFn = (prop, reverse, ignorecase, natural) => {
+    return (el1, el2) => {
+        const item1 = el1._item;
+        const item2 = el2._item;
 
-        if ($item.hasClass('folder-parent')) {
-            return 0;
+        let res = getTypeOrder(item1) - getTypeOrder(item2);
+        if (res !== 0) {
+            return res;
         }
-        if ($item.hasClass('folder')) {
-            if (settings.folders === 1) {
-                return 2;
-            } else if (settings.folders === 2) {
-                return 3;
+
+        let val1 = item1[prop];
+        let val2 = item2[prop];
+
+        if (isNaN(val1) || isNaN(val2)) {
+            val1 = String(val1);
+            val2 = String(val2);
+
+            if (ignorecase) {
+                val1 = val1.toLowerCase();
+                val2 = val2.toLowerCase();
             }
-            return 1;
         }
-        return 2;
-    }
 
-    function getName(item) {
-        return $(item).find('.label').text();
-    }
-
-    function getTime(item) {
-        return $(item).find('.date').data('time');
-    }
-
-    function getSize(item) {
-        return $(item).find('.size').data('bytes');
-    }
-
-
-    var columnGetters = {
-        0: getName,
-        1: getTime,
-        2: getSize
+        res = natural ? naturalCmp(val1, val2) : cmp(val1, val2);
+        return reverse ? -res : res;
     };
-    var columnClasses = {
-        0: 'label',
-        1: 'date',
-        2: 'size'
-    };
+};
 
+const sortItems = (column, reverse) => {
+    const $headers = dom('#items li.header a');
+    const $header = dom('#items li.header a.' + columnClasses[column]);
+    const fn = cmpFn(columnProps[column], reverse, settings.ignorecase, settings.natural);
 
-    function cmpFn(getValue, reverse, ignorecase, natural) {
-        return function (item1, item2) {
-            var res;
-            var val1;
-            var val2;
+    store.put(storekey, {column, reverse});
 
-            res = getType(item1) - getType(item2);
-            if (res !== 0) {
-                return res;
-            }
+    $headers.rmCls('ascending').rmCls('descending');
+    $header.addCls(reverse ? 'descending' : 'ascending');
 
-            val1 = getValue(item1);
-            val2 = getValue(item2);
+    dom(toArray(dom('#items .item:not(.folder-parent)')).sort(fn)).appTo('#items');
+};
 
-            if (isNaN(val1) || isNaN(val2)) {
-                val1 = String(val1);
-                val2 = String(val2);
+const onContentChanged = () => {
+    const order = store.get(storekey);
+    const column = order && order.column || settings.column;
+    const reverse = order && order.reverse || settings.reverse;
 
-                if (ignorecase) {
-                    val1 = val1.toLowerCase();
-                    val2 = val2.toLowerCase();
-                }
-            }
+    sortItems(column, reverse);
+};
 
-            res = natural ? util.naturalCmpFn(val1, val2) : util.regularCmpFn(val1, val2);
-            return reverse ? -res : res;
-        };
-    }
+const addToggles = () => {
+    const $header = dom('#items li.header');
 
-    function sortItems(column, reverse) {
-        var $headers = $('#items li.header a');
-        var $header = $('#items li.header a.' + columnClasses[column]);
-        var fn = cmpFn(columnGetters[column], reverse, settings.ignorecase, column === 0 && settings.natural);
-        var $current = $('#items .item');
-        var $sorted = $('#items .item').sort(fn);
-
-        store.put(storekey, {column: column, reverse: reverse});
-
-        $headers.removeClass('ascending descending');
-        $header.addClass(reverse ? 'descending' : 'ascending');
-
-        for (var i = 0, l = $current.length; i < l; i += 1) {
-            if ($current[i] !== $sorted[i]) {
-                $sorted.detach().sort(fn).appendTo('#items');
-                break;
-            }
-        }
-    }
-
-    function onContentChanged() {
-        var order = store.get(storekey);
-        var column = order && order.column || settings.column;
-        var reverse = order && order.reverse || settings.reverse;
-
-        sortItems(column, reverse);
-    }
-
-    function init() {
-        if (!settings.enabled) {
-            return;
-        }
-
-        var $header = $('#items li.header');
-
-        $header.find('a.label')
-            .append(template)
-            .click(function (ev) {
-                sortItems(0, $(this).hasClass('ascending'));
+    each(columnClasses, (cls, idx) => {
+        const pos = idx === '0' ? 'app' : 'pre';
+        $header
+            .find('a.' + cls)[pos](tpl)
+            .on('click', ev => {
+                sortItems(idx, dom(ev.currentTarget).hasCls('ascending'));
                 ev.preventDefault();
             });
+    });
+};
 
-        $header.find('a.date')
-            .prepend(template)
-            .click(function (ev) {
-                sortItems(1, $(this).hasClass('ascending'));
-                ev.preventDefault();
-            });
-
-        $header.find('a.size')
-            .prepend(template)
-            .click(function (ev) {
-                sortItems(2, $(this).hasClass('ascending'));
-                ev.preventDefault();
-            });
-
-        event.sub('view.changed', onContentChanged);
+const init = () => {
+    if (!settings.enabled) {
+        return;
     }
 
+    addToggles();
+    event.sub('view.changed', onContentChanged);
+};
 
-    init();
-});
+
+init();

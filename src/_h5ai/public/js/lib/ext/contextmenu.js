@@ -1,163 +1,157 @@
-modulejs.define('ext/contextmenu', ['_', '$', 'core/resource', 'core/settings'], function (_, $, resource, allsettings) {
-    var settings = _.extend({
-        enabled: false
-    }, allsettings.contextmenu);
-    var templateOverlay = '<div id="cm-overlay"/>';
-    var templatePanel = '<div class="cm-panel"><ul/></div>';
-    var templateSep = '<li class="cm-sep"/>';
-    var templateEntry = '<li class="cm-entry"><span class="cm-icon"><img/></span><span class="cm-text"/></li>';
-    var templateLabel = '<li class="cm-label"><span class="cm-text"/></li>';
+const {each, dom} = require('../util');
+const resource = require('../core/resource');
+const allsettings = require('../core/settings');
+
+const settings = Object.assign({
+    enabled: false
+}, allsettings.contextmenu);
+const overlayTpl = '<div id="cm-overlay"></div>';
+const panelTpl = '<div class="cm-panel"><ul></ul></div>';
+const sepTpl = '<li class="cm-sep"></li>';
+const entryTpl = '<li class="cm-entry"><span class="cm-icon"><img/></span><span class="cm-text"></span></li>';
+const labelTpl = '<li class="cm-label"><span class="cm-text"></span></li>';
 
 
-    function createOverlay(callback) {
-        var $overlay = $(templateOverlay);
-
-        $overlay
-            .on('click contextmenu', function (ev) {
-                ev.stopPropagation();
-                ev.preventDefault();
-
-                var cmId = $(ev.target).closest('.cm-entry').data('cm-id');
-
-                if (ev.target === $overlay[0] || cmId !== undefined) {
-                    $overlay.remove();
-                    callback(cmId);
-                }
-            });
-
-        return $overlay;
+const closestId = el => {
+    while (!el._cmId && el.parentNode) {
+        el = el.parentNode;
     }
+    return el._cmId;
+};
 
-    function createPanel(menu) {
-        var $panel = $(templatePanel);
-        var $ul = $panel.find('ul');
-        var $li;
+const createOverlay = callback => {
+    const $overlay = dom(overlayTpl);
 
-        _.each(menu, function (entry) {
-            if (entry.type === '-') {
-                $(templateSep).appendTo($ul);
-            } else if (entry.type === 'l') {
-                $(templateLabel).appendTo($ul)
-                    .find('.cm-text').text(entry.text);
-            } else if (entry.type === 'e') {
-                $li = $(templateEntry).appendTo($ul);
-                $li.data('cm-id', entry.id);
-                $li.find('.cm-text').text(entry.text);
-                if (entry.icon) {
-                    $li.find('.cm-icon img').attr('src', resource.icon(entry.icon));
-                } else {
-                    $li.find('.cm-icon').addClass('no-icon');
-                }
+    const handle = ev => {
+        ev.stopPropagation();
+        ev.preventDefault();
+
+        const cmId = closestId(ev.target);
+
+        if (ev.target === $overlay[0] || cmId !== undefined) {
+            $overlay.rm();
+            callback(cmId);
+        }
+    };
+
+    return $overlay
+        .on('contextmenu', handle)
+        .on('click', handle);
+};
+
+const createPanel = menu => {
+    const $panel = dom(panelTpl);
+    const $ul = $panel.find('ul');
+    let $li;
+
+    each(menu, entry => {
+        if (entry.type === '-') {
+            dom(sepTpl).appTo($ul);
+        } else if (entry.type === 'l') {
+            dom(labelTpl).appTo($ul)
+                .find('.cm-text').text(entry.text);
+        } else if (entry.type === 'e') {
+            $li = dom(entryTpl).appTo($ul);
+            $li[0]._cmId = entry.id;
+            $li.find('.cm-text').text(entry.text);
+            if (entry.icon) {
+                $li.find('.cm-icon img').attr('src', resource.icon(entry.icon));
+            } else {
+                $li.find('.cm-icon').addCls('no-icon');
             }
-        });
+        }
+    });
 
-        return $panel;
+    return $panel;
+};
+
+const positionPanel = ($overlay, $panel, x, y) => {
+    const margin = 4;
+
+    $panel.css({
+        left: 0,
+        top: 0,
+        opacity: 0
+    });
+    $overlay.show();
+
+    const or = $overlay[0].getBoundingClientRect();
+    const pr = $panel[0].getBoundingClientRect();
+
+    const overlayLeft = or.left;
+    const overlayTop = or.top;
+    const overlayWidth = or.width;
+    const overlayHeight = or.height;
+
+    let panelWidth = pr.width;
+    let panelHeight = pr.height;
+
+    let posLeft = x;
+    let posTop = y;
+
+    if (panelWidth > overlayWidth - 2 * margin) {
+        posLeft = margin;
+        panelWidth = overlayWidth - 2 * margin;
     }
 
-    function positionPanel($overlay, $panel, x, y) {
-        var margin = 4;
-
-        $panel.css({
-            left: 0,
-            top: 0,
-            opacity: 0
-        });
-        $overlay.show();
-
-        var overlayOffset = $overlay.offset();
-        var overlayLeft = overlayOffset.left;
-        var overlayTop = overlayOffset.top;
-        var overlayWidth = $overlay.outerWidth(true);
-        var overlayHeight = $overlay.outerHeight(true);
-
-        // var panelOffset = $panel.offset();
-        // var panelLeft = panelOffset.left;
-        // var panelTop = panelOffset.top;
-        var panelWidth = $panel.outerWidth(true);
-        var panelHeight = $panel.outerHeight(true);
-
-        var posLeft = x;
-        var posTop = y;
-
-        if (panelWidth > overlayWidth - 2 * margin) {
-            posLeft = margin;
-            panelWidth = overlayWidth - 2 * margin;
-        }
-
-        if (panelHeight > overlayHeight - 2 * margin) {
-            posTop = margin;
-            panelHeight = overlayHeight - 2 * margin;
-        }
-
-        if (posLeft < overlayLeft + margin) {
-            posLeft = overlayLeft + margin;
-        }
-
-        if (posLeft + panelWidth > overlayLeft + overlayWidth - margin) {
-            posLeft = overlayLeft + overlayWidth - margin - panelWidth;
-        }
-
-        if (posTop < overlayTop + margin) {
-            posTop = overlayTop + margin;
-        }
-
-        if (posTop + panelHeight > overlayTop + overlayHeight - margin) {
-            posTop = overlayTop + overlayHeight - margin - panelHeight;
-        }
-
-        $panel.css({
-            left: posLeft,
-            top: posTop,
-            width: panelWidth,
-            height: panelHeight,
-            opacity: 1
-        });
+    if (panelHeight > overlayHeight - 2 * margin) {
+        posTop = margin;
+        panelHeight = overlayHeight - 2 * margin;
     }
 
-    function showMenuAt(x, y, menu, callback) {
-        var $overlay = createOverlay(callback);
-        var $panel = createPanel(menu);
-        $overlay.append($panel).appendTo('body');
-        positionPanel($overlay, $panel, x, y);
+    if (posLeft < overlayLeft + margin) {
+        posLeft = overlayLeft + margin;
     }
 
-    function init() {
-        // settings.enabled = true;
-        if (!settings.enabled) {
-            return;
-        }
-
-        $(document).on('contextmenu', function (ev) {
-            ev.stopPropagation();
-            ev.preventDefault();
-            $(ev.target).trigger($.Event('h5ai-contextmenu', {
-                originalEvent: ev,
-                showMenu: function (menu, callback) {
-                    showMenuAt(ev.pageX, ev.pageY, menu, callback);
-                }
-            }));
-        });
-
-        // var menu = [
-        //         {type: 'e', id: 'e1', text: 'testing context menus'},
-        //         {type: 'e', id: 'e2', text: 'another entry'},
-        //         {type: 'e', id: 'e3', text: 'one with icon', icon: 'folder'},
-        //         {type: '-'},
-        //         {type: 'e', id: 'e4', text: 'one with icon', icon: 'x'},
-        //         {type: 'e', id: 'e5', text: 'one with icon', icon: 'img'}
-        //     ];
-        // var callback = function (res) {
-
-        //     window.console.log('>> CB-RESULT >> ' + res);
-        // };
-
-        // $(document).on('h5ai-contextmenu', '#items .item.folder', function (ev) {
-
-        //     window.console.log('CM', ev);
-        //     ev.showMenu(menu, callback);
-        // });
+    if (posLeft + panelWidth > overlayLeft + overlayWidth - margin) {
+        posLeft = overlayLeft + overlayWidth - margin - panelWidth;
     }
 
+    if (posTop < overlayTop + margin) {
+        posTop = overlayTop + margin;
+    }
 
-    init();
-});
+    if (posTop + panelHeight > overlayTop + overlayHeight - margin) {
+        posTop = overlayTop + overlayHeight - margin - panelHeight;
+    }
+
+    $panel.css({
+        left: posLeft + 'px',
+        top: posTop + 'px',
+        width: panelWidth + 'px',
+        height: panelHeight + 'px',
+        opacity: 1
+    });
+};
+
+const showMenuAt = (x, y, menu, callback) => {
+    const $overlay = createOverlay(callback);
+    const $panel = createPanel(menu);
+    $overlay.hide().app($panel).appTo('body');
+    positionPanel($overlay, $panel, x, y);
+};
+
+const init = () => {
+    if (!settings.enabled) {
+        return;
+    }
+
+    const menu = [
+        {type: 'e', id: 'e1', text: 'testing context menus'},
+        {type: 'e', id: 'e2', text: 'another entry'},
+        {type: 'e', id: 'e3', text: 'one with icon', icon: 'folder'},
+        {type: '-'},
+        {type: 'e', id: 'e4', text: 'one with icon', icon: 'x'},
+        {type: 'e', id: 'e5', text: 'one with icon', icon: 'img'}
+    ];
+
+
+    dom('#view').on('contextmenu', ev => {
+        ev.preventDefault();
+        // showMenuAt(ev.pageX, ev.pageY, menu, res => console.log('>> CB-RESULT >> ' + res));
+        showMenuAt(ev.pageX, ev.pageY, menu);
+    });
+};
+
+
+init();

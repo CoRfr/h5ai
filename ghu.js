@@ -1,8 +1,7 @@
 const {resolve, join} = require('path');
 const {
-    ghu,
-    autoprefixer, cssmin, each, ife, includeit, jade, jszip,
-    less, mapfn, newerThan, read, remove, run, uglify, watch, wrap, write
+    ghu, autoprefixer, cssmin, each, ife, includeit, jszip, less, mapfn,
+    newerThan, pug, read, remove, run, uglify, watch, webpack, wrap, write
 } = require('ghu');
 
 const ROOT = resolve(__dirname);
@@ -10,7 +9,25 @@ const SRC = join(ROOT, 'src');
 const TEST = join(ROOT, 'test');
 const BUILD = join(ROOT, 'build');
 
-const mapper = mapfn.p(SRC, BUILD).s('.less', '.css').s('.jade', '');
+const mapper = mapfn.p(SRC, BUILD).s('.less', '.css').s('.pug', '');
+const webpackCfg = include => ({
+    module: {
+        loaders: [
+            {
+                include,
+                loader: 'babel-loader',
+                query: {
+                    cacheDirectory: true,
+                    presets: ['es2015']
+                }
+            },
+            {
+                test: /jsdom/,
+                loader: 'null-loader'
+            }
+        ]
+    }
+});
 
 ghu.defaults('release');
 
@@ -50,10 +67,12 @@ ghu.task('lint', 'lint all JavaScript files with eslint', () => {
 });
 
 ghu.task('build:scripts', runtime => {
-    return read(`${SRC}/_h5ai/public/js/*.js`)
+    return read(`${SRC}/_h5ai/public/js/scripts.js`)
         .then(newerThan(mapper, `${SRC}/_h5ai/public/js/**`))
+        .then(webpack(webpackCfg([SRC]), {showStats: false}))
+        .then(wrap('\n\n// @include "pre.js"\n\n'))
         .then(includeit())
-        .then(ife(() => runtime.args.production, uglify()))
+        .then(ife(() => runtime.args.production, uglify({compressor: {warnings: false}})))
         .then(wrap(runtime.commentJs))
         .then(write(mapper, {overwrite: true}));
 });
@@ -70,9 +89,9 @@ ghu.task('build:styles', runtime => {
 });
 
 ghu.task('build:pages', runtime => {
-    return read(`${SRC}: **/*.jade, ! **/*.tpl.jade`)
-        .then(newerThan(mapper, `${SRC}/**/*.tpl.jade`))
-        .then(jade({pkg: runtime.pkg}))
+    return read(`${SRC}: **/*.pug, ! **/*.tpl.pug`)
+        .then(newerThan(mapper, `${SRC}/**/*.tpl.pug`))
+        .then(pug({pkg: runtime.pkg}))
         .then(wrap('', runtime.commentHtml))
         .then(write(mapper, {overwrite: true}));
 });
@@ -86,7 +105,7 @@ ghu.task('build:copy', runtime => {
             .then(wrap(runtime.commentJs))
             .then(write(mapper, {overwrite: true, cluster: true})),
 
-        read(`${SRC}: **, ! **/*.js, ! **/*.less, ! **/*.jade, ! **/conf/*.json`)
+        read(`${SRC}: **, ! **/*.js, ! **/*.less, ! **/*.pug, ! **/conf/*.json`)
             .then(newerThan(mapper))
             .then(each(obj => {
                 if (/index\.php$/.test(obj.source)) {
@@ -101,32 +120,21 @@ ghu.task('build:copy', runtime => {
     ]);
 });
 
-ghu.task('build:tests', ['build:scripts', 'build:styles'], 'build the test suite', runtime => {
+ghu.task('build:tests', ['build:styles'], 'build the test suite', () => {
     return Promise.all([
-        read(`${TEST}/scripts.js`)
-            .then(newerThan(`${BUILD}/test/scripts.js`))
-            .then(includeit())
-            .then(write(`${BUILD}/test/scripts.js`, {overwrite: true})),
-
-        read(`${TEST}/styles.less`)
-            .then(newerThan(`${BUILD}/test/styles.css`))
-            .then(includeit())
-            .then(less())
-            .then(autoprefixer())
-            .then(write(`${BUILD}/test/styles.css`, {overwrite: true})),
-
-        read(`${TEST}/index.html.jade`)
-            .then(newerThan(`${BUILD}/test/index.html`))
-            .then(jade({pkg: runtime.pkg}))
-            .then(write(`${BUILD}/test/index.html`, {overwrite: true})),
-
-        read(`${BUILD}/_h5ai/public/js/scripts.js`)
-            .then(newerThan(`${BUILD}/test/h5ai-scripts.js`))
-            .then(write(`${BUILD}/test/h5ai-scripts.js`, {overwrite: true})),
-
         read(`${BUILD}/_h5ai/public/css/styles.css`)
             .then(newerThan(`${BUILD}/test/h5ai-styles.css`))
-            .then(write(`${BUILD}/test/h5ai-styles.css`, {overwrite: true}))
+            .then(write(`${BUILD}/test/h5ai-styles.css`, {overwrite: true})),
+
+        read(`${TEST}/index.html`)
+            .then(newerThan(`${BUILD}/test/index.html`))
+            .then(write(`${BUILD}/test/index.html`, {overwrite: true})),
+
+        read(`${TEST}: index.js`)
+            .then(webpack(webpackCfg([SRC, TEST]), {showStats: false}))
+            .then(wrap(`\n\n// @include "${SRC}/**/js/pre.js"\n\n`))
+            .then(includeit())
+            .then(write(mapfn.p(TEST, `${BUILD}/test`), {overwrite: true}))
     ]).then(() => {
         console.log(`browse to file://${BUILD}/test/index.html to run the test suite`);
     });

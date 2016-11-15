@@ -1,16 +1,20 @@
-modulejs.define('view/notification', ['$', 'view/root'], function ($, root) {
-    var $el = $('<div id="notification"/>').hide().appendTo(root.$el);
+const {dom} = require('../util');
+const base = require('./base');
 
-    function set(content) {
+const init = () => {
+    const $el = dom('<div id="notification"></div>').hide().appTo(base.$root);
+
+    const set = content => {
         if (content) {
-            $el.stop(true, true).html(content).fadeIn(400);
+            $el.html(content).show();
         } else {
-            $el.stop(true, true).fadeOut(400);
+            $el.hide();
         }
-    }
+    };
 
     return {
-        $el: $el,
-        set: set
+        set
     };
-});
+};
+
+module.exports = init();

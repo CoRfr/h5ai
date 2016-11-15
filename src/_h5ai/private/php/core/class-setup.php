@@ -48,11 +48,13 @@ class Setup {
     private function add_globals_and_envs() {
         $this->set('PHP_VERSION', PHP_VERSION);
         $this->set('MIN_PHP_VERSION', MIN_PHP_VERSION);
+        $this->set('PHP_ARCH', (PHP_INT_SIZE * 8) . '-bit');
 
-        $this->set('REQUEST_METHOD', getenv('REQUEST_METHOD'));
-        $this->set('REQUEST_HREF', parse_url(getenv('REQUEST_URI'), PHP_URL_PATH));
-        $this->set('SCRIPT_NAME', getenv('SCRIPT_NAME'));
-        $this->set('SERVER_SOFTWARE', getenv('SERVER_SOFTWARE'));
+        $this->set('REQUEST_METHOD', $_SERVER['REQUEST_METHOD']);
+        $this->set('REQUEST_HREF', parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
+        $this->set('SCRIPT_NAME', $_SERVER['SCRIPT_NAME']);
+        $this->set('SERVER_SOFTWARE', $_SERVER['SERVER_SOFTWARE']);
+        $this->set('HTTP_USER_AGENT', $_SERVER['HTTP_USER_AGENT']);
     }
 
     private function add_php_checks() {
@@ -119,17 +121,17 @@ class Setup {
         $cmds = Json::load($cmds_cache_path);
         if (sizeof($cmds) === 0 || $this->refresh) {
             $cmds['command'] = Util::exec_0('command -v command');
-            $cmds['which'] = Util::exec_0('which which');
+            $cmds['which'] = Util::exec_0('which which') || Util::exec_0('which which.exe');
 
             $cmd = false;
             if ($cmds['command']) {
                 $cmd = 'command -v';
-            } else if ($cmds['which']) {
+            } elseif ($cmds['which']) {
                 $cmd = 'which';
             }
 
             foreach (['avconv', 'convert', 'du', 'ffmpeg', 'gm', 'tar', 'zip'] as $c) {
-                $cmds[$c] = ($cmd !== false) && Util::exec_0($cmd . ' ' . $c);
+                $cmds[$c] = ($cmd !== false) && (Util::exec_0($cmd . ' ' . $c) || Util::exec_0($cmd . ' ' . $c . '.exe'));
             }
 
             Json::save($cmds_cache_path, $cmds);
@@ -151,6 +153,7 @@ class Setup {
 
                 'PHP_VERSION',
                 'MIN_PHP_VERSION',
+                'PHP_ARCH',
                 'HAS_PHP_EXIF',
                 'HAS_PHP_JPEG',
 

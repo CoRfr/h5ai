@@ -1,6 +1,7 @@
-#pv-txt-text {
+#pv-content-txt {
     .raised;
 
+    box-sizing: border-box;
     max-width: 960px;
     text-align: left;
     background: @col-back-paper;
@@ -8,103 +9,28 @@
     padding: 8px;
     overflow: auto;
 
-    &.highlighted {
+    a, a:active, a:visited {
+        color: #2080FF;
+        text-decoration: none;
+        cursor: pointer;
 
-        code {
-            line-height: 1.2em;
-        }
-
-        a, a:active, a:visited {
-            color: #2080FF;
-            text-decoration: none;
-            cursor: pointer;
-
-            &:hover {
-                color: #68A9FF;
-            }
-        }
-
-        .token.comment,
-        .token.prolog,
-        .token.doctype,
-        .token.cdata {
-            color: #aaa;
-        }
-
-        .token.punctuation {
-            color: #999;
-        }
-
-        .namespace {
-            opacity: .7;
-        }
-
-        .token.property,
-        .token.tag,
-        .token.boolean,
-        .token.number,
-        .token.constant,
-        .token.symbol {
-            color: #905;
-        }
-
-        .token.selector,
-        .token.attr-name,
-        .token.string,
-        .token.builtin {
-            color: #690;
-        }
-
-        .token.operator,
-        .token.entity,
-        .token.url,
-        .language-css .token.string,
-        .style .token.string,
-        .token.variable {
-            color: #a67f59;
-            background: hsla(0,0%,100%,.5);
-        }
-
-        .token.atrule,
-        .token.attr-value,
-        .token.keyword {
-            color: #07a;
-        }
-
-        .token.function {
-            color: #DD4A68;
-        }
-
-        .token.regex,
-        .token.important {
-            color: #e90;
-        }
-
-        .token.important {
-            font-weight: bold;
-        }
-
-        .token.entity {
-            cursor: help;
+        &:hover {
+            color: #68A9FF;
         }
     }
+}
 
-    &.markdown {
-        font-size: 1.1em;
-        padding: 8px 24px;
+pre#pv-content-txt {
+    code {
+        line-height: 1.2em;
+    }
+}
 
-        a, a:active, a:visited {
-            color: #2080FF;
-            text-decoration: none;
-            cursor: pointer;
+div#pv-content-txt {
+    font-size: 1.1em;
+    padding: 8px 24px;
 
-            &:hover {
-                color: #68A9FF;
-            }
-        }
-
-        code {
-            color: #008200;
-        }
+    code {
+        color: #008200;
     }
 }

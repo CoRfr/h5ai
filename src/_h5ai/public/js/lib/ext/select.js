@@ -1,191 +1,204 @@
-modulejs.define('ext/select', ['_', '$', 'core/event', 'core/resource', 'core/settings'], function (_, $, event, resource, allsettings) {
-    var settings = _.extend({
-        enabled: false,
-        clickndrag: false,
-        checkboxes: false
-    }, allsettings.select);
-    var template = '<span class="selector"><img src="' + resource.image('selected') + '" alt="selected"/></span>';
-    var x = 0;
-    var y = 0;
-    var l = 0;
-    var t = 0;
-    var w = 0;
-    var h = 0;
-    var isDragSelect;
-    var isCtrlPressed;
-    var shrink = 1 / 3;
-    var $document = $(document);
-    var $html = $('html');
-    var $selectionRect = $('<div id="selection-rect"/>');
+const {each, dom} = require('../util');
+const event = require('../core/event');
+const resource = require('../core/resource');
+const allsettings = require('../core/settings');
+
+const doc = global.window.document;
+const settings = Object.assign({
+    enabled: false,
+    clickndrag: false,
+    checkboxes: false
+}, allsettings.select);
+const selectorTpl =
+        `<span class="selector">
+            <img src="${resource.image('selected')}" alt="selected"/>
+        </span>`;
+const $document = dom(doc);
+const $html = dom('html');
+const $selectionRect = dom('<div id="selection-rect"></div>');
+const mmax = Math.max;
+const mmin = Math.min;
+const mabs = Math.abs;
+
+let dragStartX = 0;
+let dragStartY = 0;
 
 
-    function publish() {
-        var items = _.map($('#items .item.selected'), function (itemElement) {
-            return $(itemElement).data('item');
-        });
-        event.pub('selection', items);
+const publish = () => {
+    const items = dom('#items .item.selected').map(el => el._item);
+    event.pub('selection', items);
+};
+
+const elRect = el => {
+    const $el = dom(el);
+    if (!$el.length || $el.isHidden()) {
+        return null;
     }
+    const rect = $el[0].getBoundingClientRect();
+    return {l: rect.left, t: rect.top, r: rect.right, b: rect.bottom};
+};
 
-    function elementRect($element) {
-        if (!$element.is(':visible')) {
-            return null;
-        }
+const rectsAreEqual = (r1, r2) => {
+    return !!r1 && !!r2 &&
+        r1.l === r2.l &&
+        r1.t === r2.t &&
+        r1.r === r2.r &&
+        r1.b === r2.b;
+};
 
-        var offset = $element.offset();
-        var elL = offset.left;
-        var elT = offset.top;
-        var elW = $element.outerWidth();
-        var elH = $element.outerHeight();
-        return {l: elL, t: elT, w: elW, h: elH, r: elL + elW, b: elT + elH};
-    }
-
-    function doOverlap(rect1, rect2) {
-        if (!rect1 || !rect2) {
-            return false;
-        }
-
-        var left = Math.max(rect1.l, rect2.l);
-        var right = Math.min(rect1.r, rect2.r);
-        var top = Math.max(rect1.t, rect2.t);
-        var bottom = Math.min(rect1.b, rect2.b);
-        var width = right - left;
-        var height = bottom - top;
-
-        return width >= 0 && height >= 0;
-    }
-
-    function selectionUpdate(ev) {
-        l = Math.min(x, ev.pageX);
-        t = Math.min(y, ev.pageY);
-        w = Math.abs(x - ev.pageX);
-        h = Math.abs(y - ev.pageY);
-
-        if (!isDragSelect && w < 4 && h < 4) {
-            return;
-        }
-
-        if (!isDragSelect && !isCtrlPressed) {
-            $('#items .item').removeClass('selected');
-            publish();
-        }
-
-        isDragSelect = true;
-        $html.addClass('drag-select');
-
-        ev.preventDefault();
-        $selectionRect
-            .stop(true, true)
-            .css({left: l, top: t, width: w, height: h, opacity: 1})
-            .show();
-
-        var selRect = elementRect($selectionRect);
-        $('#items .item').removeClass('selecting').each(function () {
-            var $item = $(this);
-            var inter = doOverlap(selRect, elementRect($item.find('a')));
-
-            if (inter && !$item.hasClass('folder-parent')) {
-                $item.addClass('selecting');
-            }
+const updateRects = $items => {
+    const el0 = $items[0];
+    if (!rectsAreEqual(elRect(el0), el0 && el0._rect)) {
+        $items.each(el => {
+            el._rect = elRect(el);
         });
     }
+};
 
-    function selectionEnd(ev) {
-        $document.off('mousemove', selectionUpdate);
-
-        if (!isDragSelect) {
-            return;
-        }
-
-        ev.preventDefault();
-        $('#items .item.selecting.selected').removeClass('selecting').removeClass('selected');
-        $('#items .item.selecting').removeClass('selecting').addClass('selected');
-        publish();
-
-        $html.removeClass('drag-select');
-        $selectionRect
-            .stop(true, true)
-            .animate({
-                left: l + w * 0.5 * shrink,
-                top: t + h * 0.5 * shrink,
-                width: w * (1 - shrink),
-                height: h * (1 - shrink),
-                opacity: 0
-            },
-            300,
-            function () {
-                $selectionRect.hide();
-            });
+const rectsDoOverlap = (rect1, rect2) => {
+    if (!rect1 || !rect2) {
+        return false;
     }
 
-    function selectionStart(ev) {
-        // only on left button and don't block scrollbar
-        if (ev.button !== 0 || ev.offsetX >= $('#content').width() - 14) {
-            return;
-        }
+    const maxLeft = mmax(rect1.l, rect2.l);
+    const minRight = mmin(rect1.r, rect2.r);
+    const maxTop = mmax(rect1.t, rect2.t);
+    const minBottom = mmin(rect1.b, rect2.b);
 
-        isDragSelect = false;
-        isCtrlPressed = ev.ctrlKey || ev.metaKey;
-        x = ev.pageX;
-        y = ev.pageY;
+    return maxLeft <= minRight && maxTop <= minBottom;
+};
 
-        $document
-            .on('mousemove', selectionUpdate)
-            .one('mouseup', selectionEnd);
+const getPointer = ev => {
+    const content = dom('#content')[0];
+    const r = elRect(content);
+    const x = ev.pageX - r.l + content.scrollLeft;
+    const y = ev.pageY - r.t + content.scrollTop;
+    return {x, y};
+};
+
+const selectionUpdate = ev => {
+    const {x, y} = getPointer(ev);
+    const left = mmin(dragStartX, x);
+    const top = mmin(dragStartY, y);
+    const width = mabs(dragStartX - x);
+    const height = mabs(dragStartY - y);
+    const isCtrlPressed = ev.ctrlKey || ev.metaKey;
+
+    if (!isCtrlPressed && width < 4 && height < 4) {
+        return;
     }
 
-    function onSelectorClick(ev) {
-        ev.stopImmediatePropagation();
-        ev.preventDefault();
-
-        $(ev.target).closest('.item').toggleClass('selected');
-        publish();
+    if (!isCtrlPressed) {
+        dom('#items .item').rmCls('selected');
     }
 
-    function addCheckbox(item) {
-        if (item.$view && !item.isCurrentParentFolder()) {
-            $(template)
-                .on('click', onSelectorClick)
-                .appendTo(item.$view.find('a'));
+    $html.addCls('drag-select');
+
+    $selectionRect.show().css({
+        left: left + 'px',
+        top: top + 'px',
+        width: width + 'px',
+        height: height + 'px'
+    });
+
+    const selRect = elRect($selectionRect);
+    const $items = dom('#items .item:not(.folder-parent)');
+    updateRects($items);
+
+    $items.rmCls('selecting').each(el => {
+        if (rectsDoOverlap(selRect, el._rect)) {
+            dom(el).addCls('selecting');
         }
+    });
+};
+
+const selectionEnd = ev => {
+    $document
+        .off('mousemove', selectionUpdate)
+        .off('mouseup', selectionEnd);
+
+    selectionUpdate(ev);
+    dom('#items .item.selecting.selected').rmCls('selecting').rmCls('selected');
+    dom('#items .item.selecting').rmCls('selecting').addCls('selected');
+    publish();
+
+    $html.rmCls('drag-select');
+    $selectionRect.hide();
+
+    ev.stopPropagation();
+    ev.preventDefault();
+};
+
+const selectionStart = ev => {
+    // only start on left button, don't block scrollbar
+    if (ev.button !== 0 || ev.offsetX >= dom('#content')[0].offsetWidth - 16) {
+        return;
     }
 
-    function onViewChanged(added, removed) {
-        if (settings.checkboxes) {
-            _.each(added, addCheckbox);
-        }
+    const {x, y} = getPointer(ev);
+    dragStartX = x;
+    dragStartY = y;
 
-        _.each(removed, function (item) {
-            if (item.$view) {
-                item.$view.removeClass('selected');
-            }
-        });
+    $document
+        .on('mousemove', selectionUpdate)
+        .on('mouseup', selectionEnd);
 
-        publish();
+    selectionUpdate(ev);
+    ev.preventDefault();
+};
+
+const closestItem = el => {
+    while (!el._item && el.parentNode) {
+        el = el.parentNode;
+    }
+    return el._item;
+};
+
+const onSelectorClick = ev => {
+    closestItem(ev.target).$view.tglCls('selected');
+    publish();
+    ev.stopPropagation();
+    ev.preventDefault();
+};
+
+const addCheckbox = item => {
+    if (item.$view && !item.isCurrentParentFolder()) {
+        dom(selectorTpl)
+            .on('click', onSelectorClick)
+            .appTo(item.$view.find('a'));
+    }
+};
+
+const onViewChanged = (added, removed) => {
+    if (settings.checkboxes) {
+        each(added, addCheckbox);
     }
 
-    function init() {
-        if (!settings.enabled || !settings.clickndrag && !settings.checkboxes) {
-            return;
+    each(removed, item => {
+        if (item.$view) {
+            item.$view.rmCls('selected');
         }
+    });
 
-        event.sub('view.changed', onViewChanged);
+    publish();
+};
 
-        if (settings.clickndrag) {
-            $selectionRect.hide().appendTo('body');
-
-            $('#content')
-                .on('mousedown', selectionStart)
-                .on('drag dragstart', function (ev) {
-                    ev.stopImmediatePropagation();
-                    ev.preventDefault();
-                })
-                .on('click', function () {
-                    $('#items .item').removeClass('selected');
-                    publish();
-                });
-        }
+const init = () => {
+    if (!settings.enabled || !settings.clickndrag && !settings.checkboxes) {
+        return;
     }
 
+    event.sub('view.changed', onViewChanged);
 
-    init();
-});
+    if (settings.clickndrag) {
+        $selectionRect.hide().appTo('#content');
+
+        dom('#content')
+            .on('mousedown', selectionStart)
+            .on('drag', ev => ev.preventDefault())
+            .on('dragstart', ev => ev.preventDefault());
+    }
+};
+
+
+init();

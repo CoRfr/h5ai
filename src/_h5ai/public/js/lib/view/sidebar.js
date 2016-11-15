@@ -1,17 +1,28 @@
-modulejs.define('view/sidebar', ['$', 'core/resource', 'core/store', 'view/mainrow', 'view/topbar'], function ($, resource, store, mainrow, topbar) {
-    var storekey = 'sidebarIsVisible';
-    var tplSidebar = '<div id="sidebar"/>';
-    var tplToggle =
-            '<div id="sidebar-toggle" class="tool">' +
-                '<img alt="sidebar"/>' +
-            '</div>';
-    var $sidebar = $(tplSidebar);
-    var $toggle = $(tplToggle);
-    var $img = $toggle.find('img');
+const {dom} = require('../util');
+const resource = require('../core/resource');
+const allsettings = require('../core/settings');
+const store = require('../core/store');
+const base = require('./base');
 
 
-    function update(toggle) {
-        var isVisible = store.get(storekey);
+const settings = Object.assign({
+    disableSidebar: false
+}, allsettings.view);
+const storekey = 'sidebarIsVisible';
+const sidebarTpl = '<div id="sidebar"></div>';
+const toggleTpl =
+        `<div id="sidebar-toggle" class="tool">
+            <img alt="sidebar"/>
+        </div>`;
+
+
+const init = () => {
+    const $sidebar = dom(sidebarTpl).hide();
+    const $toggle = dom(toggleTpl);
+    const $img = $toggle.find('img');
+
+    const update = toggle => {
+        let isVisible = store.get(storekey);
 
         if (toggle) {
             isVisible = !isVisible;
@@ -19,22 +30,25 @@ modulejs.define('view/sidebar', ['$', 'core/resource', 'core/store', 'view/mainr
         }
 
         if (isVisible) {
-            $toggle.addClass('active');
+            $toggle.addCls('active');
             $img.attr('src', resource.image('back'));
             $sidebar.show();
         } else {
-            $toggle.removeClass('active');
+            $toggle.rmCls('active');
             $img.attr('src', resource.image('sidebar'));
             $sidebar.hide();
         }
+    };
+
+    if (!settings.disableSidebar) {
+        $sidebar.appTo(base.$mainrow);
+        $toggle.appTo(base.$toolbar).on('click', () => update(true));
+        update();
     }
-
-
-    $sidebar.appendTo(mainrow.$el);
-    $toggle.appendTo(topbar.$toolbar).on('click', function () { update(true); });
-    update(false);
 
     return {
         $el: $sidebar
     };
-});
+};
+
+module.exports = init();

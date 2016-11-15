@@ -1,16 +1,12 @@
 #tree {
-    display: none;
-
     overflow: auto;
     flex: 0 0 auto;
     order: 1;
 
-    padding: 16px 16px 16px 8px;
-    border-right: 1px solid @col-border;
+    padding: 32px 32px 32px 16px;
     white-space: nowrap;
     max-width: 250px;
     overflow-x: hidden;
-    font-weight: lighter;
 
     a, a:active, a.visited {
         display: block;
@@ -37,22 +33,28 @@
         cursor: pointer;
 
         img {
-            .eased-transition;
+            // .eased-transition;
             width: 20px;
             height: 20px;
+            zoom: 1;
         }
-        &.open {
-            img {
-                transform: rotate(90deg);
-                zoom: 1;
-            }
+    }
+
+    .item {
+        clear: left;
+
+        &.open > .indicator img {
+            transform: rotate(90deg);
         }
-        &.unknown {
+        &.unknown > .indicator {
             opacity: 0.3;
         }
-        &.none {
+        &.none > .indicator {
             opacity: 0;
             cursor: inherit;
+        }
+        &.unknown > .content, &.none > .content, &.closed > .content {
+            display: none;
         }
     }
 
@@ -71,8 +73,12 @@
     }
 
     .content {
-        list-style: none;
         margin: 0;
         padding: 0 0 0 20px;
+    }
+
+    .summary {
+        color: @col-text-disabled-black;
+        padding: 0 0 0 8px;
     }
 }

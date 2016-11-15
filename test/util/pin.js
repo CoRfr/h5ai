@@ -1,33 +1,53 @@
-(function () {
-    var title;
-    var htmlId;
-    var htmlClasses;
-    var bodyId;
-    var bodyClasses;
-    var $pinnedElements;
+const win = global.window;
+const doc = win.document;
 
-    function pinHtml() {
-        title = document.title;
-        htmlId = $('html').attr('id');
-        htmlClasses = $('html').attr('class');
-        bodyId = $('body').attr('id');
-        bodyClasses = $('body').attr('class');
-        $pinnedElements = $('head,body').children();
+const pinned = {};
+
+const attr = (el, name, value) => {
+    if (typeof el === 'string') {
+        el = doc.querySelector(el);
     }
+    if (value === undefined) {
+        return el.getAttribute(name);
+    }
+    if (value === null) {
+        return el.removeAttribute(name);
+    }
+    return el.setAttribute(name, value);
+};
 
-    function restoreHtml() {
-        document.title = title;
-        $('html').attr('id', htmlId);
-        $('html').attr('class', htmlClasses);
-        $('body').attr('id', bodyId);
-        $('body').attr('class', bodyClasses);
-        $('head,body').children().not($pinnedElements).remove();
-        if (window.localStorage && window.localStorage.clear) {
-            window.localStorage.clear();
+const rootChildren = () => {
+    return [
+        ...doc.querySelector('head').childNodes,
+        ...doc.querySelector('body').childNodes
+    ];
+};
+
+const pinHtml = () => {
+    pinned.title = doc.title;
+    pinned.htmlId = attr('html', 'id');
+    pinned.htmlClasses = attr('html', 'class');
+    pinned.bodyId = attr('body', 'id');
+    pinned.bodyClasses = attr('body', 'class');
+    pinned.els = rootChildren();
+    // console.log('pinned', pinned);
+};
+
+const restoreHtml = () => {
+    doc.title = pinned.title;
+    attr('html', 'id', pinned.htmlId);
+    attr('html', 'class', pinned.htmlClasses);
+    attr('body', 'id', pinned.bodyId);
+    attr('body', 'class', pinned.bodyClasses);
+    rootChildren().forEach(el => {
+        if (pinned.els.indexOf(el) < 0) {
+            el.remove();
         }
-    }
+    });
+    // win.localStorage.clear();
+};
 
-    window.util = window.util || {};
-    window.util.pinHtml = pinHtml;
-    window.util.restoreHtml = restoreHtml;
-}());
+module.exports = {
+    pinHtml,
+    restoreHtml
+};

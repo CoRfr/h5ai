@@ -1,36 +1,28 @@
-modulejs.define('core/event', ['_'], function (_) {
-    var slice = Array.prototype.slice;
-    var subscriptions = {};
+const {isStr, isFn, dom} = require('../util');
 
-    function sub(topic, callback) {
-        if (_.isString(topic) && _.isFunction(callback)) {
-            if (!subscriptions[topic]) {
-                subscriptions[topic] = [];
-            }
-            subscriptions[topic].push(callback);
+const subscriptions = {};
+
+const sub = (topic, listener) => {
+    if (isStr(topic) && isFn(listener)) {
+        if (!subscriptions[topic]) {
+            subscriptions[topic] = [];
         }
+        subscriptions[topic].push(listener);
     }
+};
 
-    function unsub(topic, callback) {
-        if (_.isString(topic) && _.isFunction(callback) && subscriptions[topic]) {
-            subscriptions[topic] = _.without(subscriptions[topic], callback);
-        }
+const pub = (topic, ...args) => {
+    // console.log(topic, args);
+    if (isStr(topic) && subscriptions[topic]) {
+        subscriptions[topic].forEach(listener => {
+            listener.apply(topic, args);
+        });
     }
+};
 
-    function pub(topic) {
-        var args = slice.call(arguments, 1);
+dom(global.window).on('resize', () => pub('resize'));
 
-        if (_.isString(topic) && subscriptions[topic]) {
-            _.each(subscriptions[topic], function (callback) {
-                callback.apply(topic, args);
-            });
-        }
-    }
-
-
-    return {
-        sub: sub,
-        unsub: unsub,
-        pub: pub
-    };
-});
+module.exports = {
+    sub,
+    pub
+};

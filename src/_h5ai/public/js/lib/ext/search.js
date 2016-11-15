@@ -1,84 +1,91 @@
-modulejs.define('ext/search', ['_', '$', 'core/event', 'core/location', 'core/resource', 'core/server', 'core/settings', 'core/util', 'model/item', 'view/view'], function (_, $, event, location, resource, server, allsettings, util, Item, view) {
-    var settings = _.extend({
-        enabled: false,
-        advanced: false,
-        debounceTime: 300
-    }, allsettings.search);
-    var template =
-            '<div id="search" class="tool">' +
-                '<img src="' + resource.image('search') + '" alt="search"/>' +
-                '<input class="l10n_ph-search" type="text" value=""/>' +
-            '</div>';
-    var inputIsVisible = false;
-    var prevPattern = '';
-    var $search;
-    var $input;
+const {map, debounce, parsePattern, dom} = require('../util');
+const server = require('../server');
+const event = require('../core/event');
+const location = require('../core/location');
+const resource = require('../core/resource');
+const allsettings = require('../core/settings');
+const Item = require('../model/item');
+const view = require('../view/view');
 
 
-    function search(pattern) {
-        pattern = pattern || '';
-        if (pattern === prevPattern) {
-            return;
+const settings = Object.assign({
+    enabled: false,
+    advanced: false,
+    debounceTime: 300,
+    ignorecase: true
+}, allsettings.search);
+const tpl =
+        `<div id="search" class="tool">
+            <img src="${resource.image('search')}" alt="search"/>
+            <input class="l10n_ph-search" type="text" value=""/>
+        </div>`;
+let inputIsVisible = false;
+let prevPattern = '';
+let $search;
+let $input;
+
+
+const search = (pattern = '') => {
+    if (pattern === prevPattern) {
+        return;
+    }
+    prevPattern = pattern;
+
+    if (!pattern) {
+        view.setLocation();
+        return;
+    }
+
+    $search.addCls('pending');
+
+    server.request({
+        action: 'get',
+        search: {
+            href: location.getAbsHref(),
+            pattern,
+            ignorecase: settings.ignorecase
         }
-        prevPattern = pattern;
+    }).then(response => {
+        $search.rmCls('pending');
+        view.setHint('noMatch');
+        view.setItems(map(response.search, item => Item.get(item)));
+    });
+};
 
-        if (!pattern) {
-            view.setLocation();
-            return;
-        }
+const update = () => {
+    if (inputIsVisible) {
+        $search.addCls('active');
+        $input[0].focus();
+        search(parsePattern($input.val(), settings.advanced));
+    } else {
+        search();
+        $search.rmCls('active');
+    }
+};
 
-        $search.addClass('pending');
+const toggle = () => {
+    inputIsVisible = !inputIsVisible;
+    update();
+};
 
-        server.request({
-            action: 'get',
-            search: {
-                href: location.getAbsHref(),
-                pattern: pattern
-            }
-        }, function (response) {
-            $search.removeClass('pending');
-            view.setHint('noMatch');
-            view.setItems(_.map(response.search, function (item) {
-                return Item.get(item);
-            }));
-        });
+const reset = () => {
+    inputIsVisible = false;
+    $input.val('');
+    update();
+};
+
+const init = () => {
+    if (!settings.enabled) {
+        return;
     }
 
-    function update() {
-        if (inputIsVisible) {
-            $search.addClass('active');
-            $input.focus();
-            search(util.parsePattern($input.val(), settings.advanced));
-        } else {
-            search();
-            $search.removeClass('active');
-        }
-    }
+    $search = dom(tpl).appTo('#toolbar');
+    $input = $search.find('input');
 
-    function toggle() {
-        inputIsVisible = !inputIsVisible;
-        update();
-    }
-
-    function reset() {
-        inputIsVisible = false;
-        $input.val('');
-        update();
-    }
-
-    function init() {
-        if (!settings.enabled) {
-            return;
-        }
-
-        $search = $(template).appendTo('#toolbar');
-        $input = $search.find('input');
-
-        $search.on('click', 'img', toggle);
-        $input.on('keyup', _.debounce(update, settings.debounceTime, {trailing: true}));
-        event.sub('location.changed', reset);
-    }
+    $search.find('img').on('click', toggle);
+    $input.on('keyup', debounce(update, settings.debounceTime));
+    event.sub('location.changed', reset);
+};
 
 
-    init();
-});
+init();

@@ -1,83 +1,83 @@
-modulejs.define('ext/filter', ['_', '$', 'core/event', 'core/location', 'core/resource', 'core/settings', 'core/util', 'view/view'], function (_, $, event, location, resource, allsettings, util, view) {
-    var settings = _.extend({
-        enabled: false,
-        advanced: false,
-        debounceTime: 100
-    }, allsettings.filter);
-    var template =
-            '<div id="filter" class="tool">' +
-                '<img src="' + resource.image('filter') + '" alt="filter"/>' +
-                '<input class="l10n_ph-filter" type="text" value=""/>' +
-            '</div>';
-    var inputIsVisible = false;
-    var prevPattern = '';
-    var $filter;
-    var $input;
+const {filter, debounce, parsePattern, dom} = require('../util');
+const event = require('../core/event');
+const location = require('../core/location');
+const resource = require('../core/resource');
+const allsettings = require('../core/settings');
+const view = require('../view/view');
 
 
-    function filter(pattern) {
-        pattern = pattern || '';
-        if (pattern === prevPattern) {
-            return;
-        }
-        prevPattern = pattern;
+const settings = Object.assign({
+    enabled: false,
+    advanced: false,
+    debounceTime: 100,
+    ignorecase: true
+}, allsettings.filter);
+const tpl =
+        `<div id="filter" class="tool">
+            <img src="${resource.image('filter')}" alt="filter"/>
+            <input class="l10n_ph-filter" type="text" value=""/>
+        </div>`;
+let inputIsVisible = false;
+let prevPattern = '';
+let $filter;
+let $input;
 
-        if (!pattern) {
-            view.setLocation();
-            return;
-        }
 
-        $filter.addClass('pending');
+const filterItems = (pattern = '') => {
+    if (pattern === prevPattern) {
+        return;
+    }
+    prevPattern = pattern;
 
-        var re = new RegExp(pattern);
-        var matchedItems = [];
-
-        _.each(location.getItem().content, function (item) {
-            if (re.test(item.label)) {
-                matchedItems.push(item);
-            }
-        });
-
-        $filter.removeClass('pending');
-        view.setHint('noMatch');
-        view.setItems(matchedItems);
+    if (!pattern) {
+        view.setLocation();
+        return;
     }
 
-    function update() {
-        if (inputIsVisible) {
-            $filter.addClass('active');
-            $input.focus();
-            filter(util.parsePattern($input.val(), settings.advanced));
-        } else {
-            filter();
-            $filter.removeClass('active');
-        }
+    $filter.addCls('pending');
+
+    const re = new RegExp(pattern, settings.ignorecase ? 'i' : '');
+    const items = filter(location.getItem().content, item => re.test(item.label));
+
+    $filter.rmCls('pending');
+    view.setHint('noMatch');
+    view.setItems(items);
+};
+
+const update = () => {
+    if (inputIsVisible) {
+        $filter.addCls('active');
+        $input[0].focus();
+        filterItems(parsePattern($input.val(), settings.advanced));
+    } else {
+        filterItems();
+        $filter.rmCls('active');
+    }
+};
+
+const toggle = () => {
+    inputIsVisible = !inputIsVisible;
+    update();
+};
+
+const reset = () => {
+    inputIsVisible = false;
+    $input.val('');
+    update();
+};
+
+const init = () => {
+    if (!settings.enabled) {
+        return;
     }
 
-    function toggle() {
-        inputIsVisible = !inputIsVisible;
-        update();
-    }
+    $filter = dom(tpl).appTo('#toolbar');
+    $input = $filter.find('input');
 
-    function reset() {
-        inputIsVisible = false;
-        $input.val('');
-        update();
-    }
-
-    function init() {
-        if (!settings.enabled) {
-            return;
-        }
-
-        $filter = $(template).appendTo('#toolbar');
-        $input = $filter.find('input');
-
-        $filter.on('click', 'img', toggle);
-        $input.on('keyup', _.debounce(update, settings.debounceTime, {trailing: true}));
-        event.sub('location.changed', reset);
-    }
+    $filter.find('img').on('click', toggle);
+    $input.on('keyup', debounce(update, settings.debounceTime));
+    event.sub('location.changed', reset);
+};
 
 
-    init();
-});
+init();

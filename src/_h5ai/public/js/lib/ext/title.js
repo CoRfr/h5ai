@@ -1,26 +1,28 @@
-modulejs.define('ext/title', ['_', 'core/event', 'core/settings'], function (_, event, allsettings) {
-    var settings = _.extend({
-        enabled: false
-    }, allsettings.title);
+const event = require('../core/event');
+const allsettings = require('../core/settings');
 
-    function onLocationChanged(item) {
-        var labels = _.pluck(item.getCrumb(), 'label');
-        var title = labels.join(' > ');
+const doc = global.window.document;
+const settings = Object.assign({
+    enabled: false
+}, allsettings.title);
 
-        if (labels.length > 1) {
-            title = labels[labels.length - 1] + ' - ' + title;
-        }
+const onLocationChanged = item => {
+    const labels = item.getCrumb().map(i => i.label);
+    let title = labels.join(' > ');
 
-        document.title = title;
+    if (labels.length > 1) {
+        title = labels[labels.length - 1] + ' - ' + title;
     }
 
-    function init() {
-        if (!settings.enabled) {
-            return;
-        }
+    doc.title = title;
+};
 
-        event.sub('location.changed', onLocationChanged);
+const init = () => {
+    if (!settings.enabled) {
+        return;
     }
 
-    init();
-});
+    event.sub('location.changed', onLocationChanged);
+};
+
+init();
